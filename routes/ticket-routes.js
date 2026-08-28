@@ -5,5 +5,8 @@ require('../controllers/ticket-controllers')
 
 router.get('/', controller.listarTickets)
 router.get('/:id', controller.obtenerTickets)
+router.post('/', controller.crearTicket)
+router.patch('/:id', controller.actualizarPrioridad)
+router.delete('/:id', controller.eliminarTicket)
 
 module.exports = router
