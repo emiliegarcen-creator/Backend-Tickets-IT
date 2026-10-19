@@ -1,13 +1,45 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Maquina {
+  ID        Int      @id @default(autoincrement())
+  modelo    String   @db.VarChar(50)
+  situacion String
+  cargador  String?
+  ci_dueno  Int?
+  Usuario   Usuario? @relation(fields: [ci_dueno], references: [ci], onDelete: NoAction, onUpdate: NoAction, map: "Maquina_ibfk_1")
+  Ticket    Ticket[]
+
+  @@index([ci_dueno], map: "ci_dueno")
+}
+
+model Ticket {
+  ID_ticket   Int      @id @default(autoincrement())
+  prioridad   String
+  descripcion String   @db.VarChar(100)
+  ci_usuario  Int
+  nrolocker   Int
+  ID_maquina  Int?
+  Usuario     Usuario  @relation(fields: [ci_usuario], references: [ci], onDelete: NoAction, onUpdate: NoAction, map: "Ticket_ibfk_1")
+  Maquina     Maquina? @relation(fields: [ID_maquina], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "Ticket_ibfk_2")
+
+  @@index([ID_maquina], map: "ID_maquina")
+  @@index([ci_usuario], map: "ci_usuario")
+}
+
+model Usuario {
+  ci                   Int       @id
+  nombre               String    @db.VarChar(50)
+  rol                  String
+  mail                 String    @db.VarChar(100)
+  contrasena           String    @db.VarChar(25)
+  google_refresh_token String?   @db.VarChar(255)
+  Maquina              Maquina[]
+  Ticket               Ticket[]
 }

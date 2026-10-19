@@ -1,122 +1,183 @@
-const data = require('../data/ticket-data')
-const usuariosData = require('../data/usuarios-data')
-const maquinaData = require('../data/maquina-data')
+const modelo = require('../modelos/ticketModelo')
+const usuarioModelo = require('../modelos/usuarioModelo')
+const maquinaModelo = require('../modelos/maquinaModelo')
 
-function listarTickets(req, res) {
-    res.json(data.ticket)
+const PRIORIDADES = ['Alta', 'Media', 'Baja']
+
+async function listarTickets(req, res) {
+    try {
+        res.json(await modelo.listarTickets())
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ error: 'Error al listar tickets' })
+    }
 }
 
-function obtenerTickets(req, res) {
-    const { id } = req.params
-    const u = data.ticket.find(x => x.id == id)
-    if (!u) return res.status(404).json({error: 'Ticket no encontrado'})
-    res.json(u)
+async function obtenerTickets(req, res) {
+    try {
+        const id = Number(req.params.id)
+        if (Number.isNaN(id)) {
+            return res.status(400).json({ error: 'El id debe ser un número' })
+        }
+        const t = await modelo.buscarTicket(id)
+        if (!t) return res.status(404).json({ error: 'Ticket no encontrado' })
+        res.json(t)
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ error: 'Error al buscar el ticket' })
+    }
 }
 
-function actualizarPrioridad(req, res) {
-    const { id } = req.params
-    const { prioridad } = req.body
+async function actualizarPrioridad(req, res) {
+    try {
+        const id = Number(req.params.id)
+        if (Number.isNaN(id)) {
+            return res.status(400).json({ error: 'El id debe ser un número' })
+        }
 
-    const ticketExistente = data.ticket.find(t => t.id == id)
-    if (!ticketExistente) {
-        return res.status(404).json({ error: 'Ticket no encontrado' })
+        const { prioridad } = req.body
+        if (!prioridad) {
+            return res.status(400).json({ error: 'Falta el campo prioridad' })
+        }
+        if (!PRIORIDADES.includes(prioridad)) {
+            return res.status(400).json({ error: `prioridad debe ser una de: ${PRIORIDADES.join(', ')}` })
+        }
+
+        res.json(await modelo.actualizarPrioridad(id, prioridad))
+    } catch (error) {
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: 'Ticket no encontrado' })
+        }
+        console.error(error)
+        res.status(500).json({ error: 'Error al actualizar la prioridad' })
     }
-
-    if (!prioridad) {
-        return res.status(400).json({ error: 'Falta el campo prioridad' })
-    }
-
-    ticketExistente.prioridad = prioridad
-    res.json(ticketExistente)
 }
 
-function crearTicket(req, res) {
-    const { id } = req.params
-    const { descripcion, nrolocker, maquina } = req.body
+async function crearTicket(req, res) {
+    try {
+        const ci = Number(req.params.id)
+        if (Number.isNaN(ci)) {
+            return res.status(400).json({ error: 'La cédula debe ser un número' })
+        }
 
-    const usuarioExiste = usuariosData.usuarios.find(u => u.ci == id)
-    if (!usuarioExiste) {
-        return res.status(404).json({ error: 'Usuario no encontrado' })
+        const { descripcion, nrolocker, maquina } = req.body
+        if (!descripcion || !nrolocker || !maquina) {
+            return res.status(400).json({ error: 'Faltan datos obligatorios (descripcion, nrolocker, maquina)' })
+        }
+
+        const nroLocker = Number(nrolocker)
+        const idMaquina = Number(maquina)
+        if (Number.isNaN(nroLocker) || Number.isNaN(idMaquina)) {
+            return res.status(400).json({ error: 'nrolocker y maquina deben ser números' })
+        }
+
+        const usuario = await usuarioModelo.buscarUsuario(ci)
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' })
+        }
+
+        const maquinaExiste = await maquinaModelo.buscarMaquina(idMaquina)
+        if (!maquinaExiste) {
+            return res.status(404).json({ error: 'Máquina no encontrada' })
+        }
+
+        const nuevo = await modelo.crearTicket({
+            descripcion,
+            nrolocker: nroLocker,
+            ci_usuario: ci,
+            ID_maquina: idMaquina
+        })
+        res.status(201).json(nuevo)
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ error: 'Error al crear el ticket' })
     }
-
-    if (!descripcion || !nrolocker || !maquina) {
-        return res.status(400).json({ error: 'Faltan datos obligatorios (descripcion, nrolocker, maquina)' })
-    }
-
-    const maquinaExiste = maquinaData.maquina.find(m => m.id == maquina)
-    if (!maquinaExiste) {
-        return res.status(404).json({ error: 'Máquina no encontrada' })
-    }
-
-    const nuevoId = data.ticket.length > 0
-        ? Math.max(...data.ticket.map(t => t.id)) + 1
-        : 1
-
-    const nuevoTicket = {
-        id: nuevoId,
-        descripcion,
-        nrolocker,
-        prioridad: 'Media',
-        ci: id,
-        maquina
-    }
-
-    data.ticket.push(nuevoTicket)
-    res.status(201).json(nuevoTicket)
 }
 
-function eliminarTicket(req, res) {
-    const { id } = req.params
-    const index = data.ticket.findIndex(t => t.id == id)
-
-    if (index === -1) {
-        return res.status(404).json({ error: 'Ticket no encontrado' })
+async function eliminarTicket(req, res) {
+    try {
+        const id = Number(req.params.id)
+        if (Number.isNaN(id)) {
+            return res.status(400).json({ error: 'El id debe ser un número' })
+        }
+        const eliminado = await modelo.eliminarTicket(id)
+        res.json({ mensaje: 'Ticket eliminado', ticket: eliminado })
+    } catch (error) {
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: 'Ticket no encontrado' })
+        }
+        console.error(error)
+        res.status(500).json({ error: 'Error al eliminar el ticket' })
     }
-
-    const eliminado = data.ticket.splice(index, 1)
-    res.json({ mensaje: 'Ticket eliminado', ticket: eliminado[0] })
 }
 
-function listarTicketsPorUsuario(req, res) {
-    const { id } = req.params
+async function listarTicketsPorUsuario(req, res) {
+    try {
+        const ci = Number(req.params.id)
+        if (Number.isNaN(ci)) {
+            return res.status(400).json({ error: 'La cédula debe ser un número' })
+        }
 
-     const usuarioExiste = usuariosData.usuarios.find(u => u.ci == id)
-    if (!usuarioExiste) {
-        return res.status(404).json({ error: 'Usuario no encontrado' })
+        const usuario = await usuarioModelo.buscarUsuario(ci)
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' })
+        }
+
+        res.json(await modelo.listarPorUsuario(ci))
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ error: 'Error al listar los tickets del usuario' })
     }
-    
-    const ticketsDelUsuario = data.ticket.filter(t => t.ci == id)
-    res.json(ticketsDelUsuario)
 }
 
-function listarTicketsMaquina(req, res) {
-    const { id } = req.params
-    const ticketsDeLaMaquina = data.ticket.filter(t => t.ci == id)
-    res.json(ticketsDelUsuario)
+async function listarTicketsMaquina(req, res) {
+    try {
+        const id = Number(req.params.id)
+        if (Number.isNaN(id)) {
+            return res.status(400).json({ error: 'El id debe ser un número' })
+        }
+
+        const maquina = await maquinaModelo.buscarMaquina(id)
+        if (!maquina) {
+            return res.status(404).json({ error: 'Máquina no encontrada' })
+        }
+
+        res.json(await modelo.listarPorMaquina(id))
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ error: 'Error al listar los tickets de la máquina' })
+    }
 }
 
-function obtenerMaquinaDeTicket(req, res) {
-    const { id } = req.params
+async function obtenerMaquinaDeTicket(req, res) {
+    try {
+        const id = Number(req.params.id)
+        if (Number.isNaN(id)) {
+            return res.status(400).json({ error: 'El id debe ser un número' })
+        }
 
-    const ticketExistente = data.ticket.find(t => t.id == id)
-    if (!ticketExistente) {
-        return res.status(404).json({ error: 'Ticket no encontrado' })
+        const t = await modelo.buscarTicketConMaquina(id)
+        if (!t) {
+            return res.status(404).json({ error: 'Ticket no encontrado' })
+        }
+        if (!t.Maquina) {
+            return res.status(404).json({ error: 'Máquina no encontrada' })
+        }
+
+        res.json(t.Maquina)
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ error: 'Error al buscar la máquina del ticket' })
     }
-
-    const maquinaDelTicket = maquinaData.maquina.find(m => m.id == ticketExistente.maquina)
-    if (!maquinaDelTicket) {
-        return res.status(404).json({ error: 'Máquina no encontrada' })
-    }
-
-    res.json(maquinaDelTicket)
 }
 
-module.exports = { 
+module.exports = {
     listarTickets,
     obtenerTickets,
     actualizarPrioridad,
-    crearTicket, 
-    eliminarTicket, 
+    crearTicket,
+    eliminarTicket,
     listarTicketsPorUsuario,
+    listarTicketsMaquina,
     obtenerMaquinaDeTicket
 }
