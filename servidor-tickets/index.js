@@ -5,6 +5,8 @@ const usuariosRoutes = require('./routes/usuarios-routes')
 const ticketRoutes = require('./routes/ticket-routes')
 const maquinaRoutes = require('./routes/maquina-routes')
 const googleRoutes = require('./routes/google-routes')
+const authRoutes = require('./routes/auth-routes');
+const adminRoutes = require('./routes/admin-routes');
 
 const app = express()
 app.use(cors())
@@ -22,6 +24,10 @@ app.use('/usuarios', usuariosRoutes)
 app.use('/maquina', maquinaRoutes)
 
 app.use('/', googleRoutes)
+
+app.use('/api/auth', authRoutes);
+
+app.use('/api/admin', adminRoutes);
 
 app.listen(3001, () => {
     console.log('Servidor en http://localhost:3001')
