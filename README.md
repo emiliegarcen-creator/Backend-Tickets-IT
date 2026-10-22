@@ -7,3 +7,4 @@ npm install googleapis
 npm install google-auth-library
 npm install dotenv
 npm install better-sqlite3
+npm install --save-dev jest
